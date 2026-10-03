@@ -1,5 +1,8 @@
 # MoeEngine
 
+Router-aware MoE expert caching and SSD-backed local inference research, with
+Python policies, native C++ integrations, and GGUF experiments on 24 GB Apple Silicon.
+
 面向混合专家模型（MoE）的专家权重驻留与缓存实验。MoeEngine 使用模型 Router
 给出的专家选择、实际加载代价与访问历史，研究有限内存下的专家读取、保留和淘汰。
 
@@ -23,6 +26,50 @@ Router 决定调用哪些专家，MoeEngine 管理专家权重的驻留，计算
 | Python 合成回放 | 生成访问序列，使用配置的加载代价 | 策略行为与模型化成本；不代表真实推理速度 |
 | Python 真实文件读取 | 对指定层的前 N 个专家重复读取 | 专家切片、缓存命中与存储吞吐；不执行文本生成 |
 | 原生推理接入 | 后端实际 Router 与计算图 | 特定模型、设备、参数和运行协议下的端到端结果 |
+
+## 实验结果
+
+以下为已记录的 **24GB Apple M5 MacBook Air** 实验，均使用 CPU 推理后端。
+结果展示大于内存容量的 MoE 权重如何按需参与生成，以及不同缓存预算的实际表现。
+
+### Qwen：87.24GiB GGUF 的专家页驻留
+
+**2026-08-28 · Qwen3.8 Flash Next UD IQ4_XS · llama.cpp + Accelerate/BLAS · 10 线程。**
+采用 mmap、零 GPU 层、无 warmup；每个配置在**同一进程中重复 3 次，每次 decode 32 tokens**，
+共 96 tokens，期间保留缓存历史。各配置在进程内注册专家 bank 时执行一次页回收 reset。
+
+| 配置 | 专家页名义预算 | 96 tokens 累计逻辑命中率 | Decode 均值 ± 样本标准差 |
+|---|---:|---:|---:|
+| macOS mmap 基线，无 MoeEngine 淘汰 | 未设策略上限 | — | **2.26 ± 0.24 tok/s** |
+| MoeEngine，24 slots/bank | 2.60 GiB | 66.05% | **0.83 ± 0.50 tok/s** |
+| MoeEngine，96 slots/bank | 10.39 GiB | 81.43% | **2.24 ± 0.15 tok/s** |
+
+96 slots 的吞吐均值接近系统基线；24 slots 出现反复读取，吞吐明显下降。表中预算按
+`55.432 GiB × slots / 512` 计算，只描述专家页策略，不是进程 RSS 或物理内存硬上限。
+这组受控 CPU 对照与生成检查期间，系统 swapout 计数增量为 **0**，权重仍按需从存储读取。
+完整配置、文件读取校验与实验解释见 [Qwen 真实推理报告](docs/qwen4exp-real-runtime-2026-08-28.md)。
+
+### DeepSeek：156.7GB 原生 FP4/FP8 权重的重复生成
+
+**2026-08-24 · DeepSeek-V4-Flash-0731 · mollm CPU · 4 计算线程、8 I/O workers。**
+使用 `moeengine-adaptive`、4GiB 专家缓存、4096 context、batch 1 贪心解码，无 MTP。
+三轮各启动**独立进程，生成 128 tokens**；首 token 计入 TTFT，后 127 tokens 计入 decode。
+轮间分别静置 45 秒和约 180 秒，未清理 macOS 文件页缓存。
+
+| 运行 | Decode | 峰值 RSS |
+|---|---:|---:|
+| Run 1 | **2.13 tok/s** | 17.147 GB |
+| Run 2 | 1.28 tok/s | 17.047 GB |
+| Run 3 | 1.57 tok/s | 16.655 GB |
+| 三轮中位数 | **1.57 tok/s** | **17.047 GB** |
+
+该配置完成了三轮生成，吞吐存在明显波动。第二轮专家等待减少而计算算子变慢；报告记录了
+这一现象，但没有直接温度或频率遥测来确认原因。完整协议与计时见
+[DeepSeek 重复 CPU 实验审查](docs/sota-report-2026-08-24.md)。
+
+另有 [2026-08-25 实验归档](benchmark-results/README.md)，其中
+[DeepSeek 后续实验目录](benchmark-results/dsv4-0731-m5air-0swap-2026-08-25/)
+包含 stdout、stderr 和系统计数器原始记录；它对应后续实验，日期与上面两组结果分别标明。
 
 ## 快速开始
 
