@@ -1,0 +1,115 @@
+#pragma once
+
+// Byte-level BPE tokenizer (GPT-2 / Llama-3 style)
+//
+// Loads a HuggingFace tokenizer.json and performs encode / decode.
+// Based on the llm.ncnn tokenizer implementation.
+
+#include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+// A single message in a chat conversation.
+struct ChatMessage {
+    std::string role;     // "system", "user", "assistant"
+    std::string content;  // message text
+};
+
+class Tokenizer {
+public:
+    // Load the tokenizer and, when available, the package's authoritative
+    // Jinja chat template. `architecture` is only a compatibility fallback
+    // for old packages that did not embed their template.
+    bool load(const std::string& tokenizer_json_path,
+              const std::string& chat_template_path = {},
+              const std::string& architecture = {});
+
+    std::vector<int> encode(const std::string& text) const;
+    std::string decode(const std::vector<int>& ids) const;
+    std::string decode(int id) const;
+
+    int bos_id() const { return bos_id_; }
+    int eos_id() const { return eos_id_; }
+    // RWKV .pth packages carry this fixed legacy template in package metadata.
+    // It mirrors rwkv-mobile: "User: ...\n\nAssistant:".
+    void set_rwkv_legacy_chat_template(bool enabled);
+    // Text stop sequences are needed for RWKV-world: a delimiter may span
+    // multiple byte tokens, so eos_id alone is insufficient.
+    std::vector<std::string> stop_sequences() const;
+    int vocab_size() const {
+        return format_ == Format::RWKV_WORLD ? (int)rwkv_id_to_bytes_.size()
+                                            : (int)id_to_piece_.size();
+    }
+
+    // Wrap a single user message in the model's chat template.
+    // Convenience wrapper for single-turn prompts.
+    std::vector<int> apply_chat(const std::string& user_message) const;
+
+    // Build a multi-turn prompt using the loaded model's ChatML, Llama-3, or
+    // explicitly enabled legacy RWKV template.
+    std::vector<int> apply_chat(const std::vector<ChatMessage>& messages,
+                                bool enable_thinking = true) const;
+
+private:
+    enum class Format { HF_BPE, RWKV_WORLD } format_ = Format::HF_BPE;
+    enum class ChatTemplateStyle {
+        AUTO,
+        CHATML_PLAIN,
+        CHATML_THINKING,
+        LLAMA3_HEADERS,
+        ROLE_TOKENS,
+        ROLE_MIDDLE,
+        DEEPSEEK_V4,
+        HY_V3,
+    };
+    ChatTemplateStyle chat_template_style_ = ChatTemplateStyle::AUTO;
+
+    enum class PreTokenizerStyle {
+        QWEN_SINGLE_DIGIT,
+        DIGIT_TRIPLES_CJK,
+    };
+    PreTokenizerStyle pre_tokenizer_style_ =
+        PreTokenizerStyle::QWEN_SINGLE_DIGIT;
+
+    std::unordered_map<std::string, int> vocab_;
+    std::vector<std::string> id_to_piece_;
+
+    struct PairHash {
+        size_t operator()(const std::pair<std::string, std::string>& p) const {
+            size_t h1 = std::hash<std::string>{}(p.first);
+            size_t h2 = std::hash<std::string>{}(p.second);
+            return h1 ^ (h2 * 0x9e3779b97f4a7c15ULL + 0x9e3779b9 +
+                         (h1 << 6) + (h1 >> 2));
+        }
+    };
+    std::unordered_map<std::pair<std::string, std::string>, int, PairHash> merges_;
+
+    std::unordered_map<std::string, int> added_tokens_;
+    std::vector<std::string> added_patterns_;
+
+    std::string byte_encoder_[256];
+    std::unordered_map<std::string, uint8_t> byte_decoder_;
+
+    int bos_id_ = 128000;
+    int eos_id_ = 128001;
+
+    struct TrieNode {
+        std::unordered_map<uint8_t, int> next;
+        int token = -1;
+    };
+    std::vector<TrieNode> rwkv_trie_;
+    std::vector<std::string> rwkv_id_to_bytes_;
+    bool rwkv_legacy_chat_template_ = false;
+    bool load_impl(const std::string& path);
+    bool configure_chat_template(const std::string& path,
+                                 const std::string& architecture);
+    bool load_rwkv_vocab(const std::string& path);
+    std::vector<int> encode_rwkv(const std::string& text) const;
+
+    void build_byte_tables();
+    std::vector<std::string> pre_tokenize(const std::string& text) const;
+    std::string bytes_to_unicode(const std::string& raw) const;
+    std::string unicode_to_bytes(const std::string& encoded) const;
+    std::vector<std::string> bpe(const std::string& token) const;
+};

@@ -1,0 +1,165 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  arm64-build-and-test:
+    name: macOS ARM64 (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: i8mm-auto
+            arm_i8mm: "AUTO"
+          - name: no-i8mm
+            arm_i8mm: "OFF"
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify ARM64 runner
+        run: test "$(uname -m)" = arm64
+      - name: Install E2E fixture dependency
+        run: python -m pip install --disable-pip-version-check numpy
+      - name: Verify E2E fixture dependency
+        run: python -c "import numpy"
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DMOLLM_BUILD_TESTS=ON
+          -DPython3_EXECUTABLE="$(which python)"
+          -DMOLLM_ARM_I8MM=${{ matrix.arm_i8mm }}
+      - name: Build
+        run: cmake --build build -j 2
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Test NEON runtime fallback
+        if: matrix.arm_i8mm == 'AUTO'
+        env:
+          MOLLM_ARM_ISA: neon
+        run: ctest --test-dir build --output-on-failure
+
+  x86-build-and-test:
+    name: Linux x86_64 (runtime ISA dispatch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify x86_64 runner
+        run: test "$(uname -m)" = x86_64
+      - name: Install E2E fixture dependency
+        run: python -m pip install --disable-pip-version-check numpy
+      - name: Verify E2E fixture dependency
+        run: python -c "import numpy"
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DMOLLM_BUILD_TESTS=ON
+          -DMOLLM_BUILD_EXAMPLE=OFF
+      - name: Build
+        run: cmake --build build -j 2
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Test AVX2 ceiling
+        env:
+          MOLLM_X86_ISA: avx2
+        run: ctest --test-dir build --output-on-failure
+      - name: Test scalar fallback
+        env:
+          MOLLM_X86_ISA: scalar
+        run: ctest --test-dir build --output-on-failure
+
+  x86-sanitizers:
+    name: Linux x86_64 (ASan + UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install E2E fixture dependency
+        run: python -m pip install --disable-pip-version-check numpy
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DMOLLM_BUILD_TESTS=ON
+          -DMOLLM_BUILD_EXAMPLE=OFF
+          -DMOLLM_SANITIZERS=ON
+      - name: Build
+        run: cmake --build build -j 2
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --output-on-failure
+
+  cuda-build:
+    name: Linux x86_64 (CUDA compile)
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:12.8.1-devel-ubuntu24.04
+    steps:
+      - name: Install build tools
+        run: apt-get update && apt-get install -y --no-install-recommends cmake g++ git
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DMOLLM_CUDA=ON
+          -DMOLLM_BUILD_TESTS=ON
+          -DMOLLM_BUILD_EXAMPLE=ON
+          -DCMAKE_CUDA_ARCHITECTURES=80
+      - name: Build
+        run: cmake --build build -j 2
+      - name: CUDA API and package tests
+        run: >
+          ctest --test-dir build --output-on-failure
+          -R 'test_cuda_backend|test_package_install'
+
+  linux-arm64-build-and-test:
+    name: Linux ARM64 (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: i8mm-auto
+            arm_i8mm: "AUTO"
+          - name: no-i8mm
+            arm_i8mm: "OFF"
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify ARM64 runner
+        run: test "$(uname -m)" = aarch64
+      - name: Install E2E fixture dependency
+        run: python -m pip install --disable-pip-version-check numpy
+      - name: Verify E2E fixture dependency
+        run: python -c "import numpy"
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DMOLLM_BUILD_TESTS=ON
+          -DMOLLM_BUILD_EXAMPLE=OFF
+          -DMOLLM_ARM_I8MM=${{ matrix.arm_i8mm }}
+      - name: Build
+        run: cmake --build build -j 2
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Test NEON runtime fallback
+        if: matrix.arm_i8mm == 'AUTO'
+        env:
+          MOLLM_ARM_ISA: neon
+        run: ctest --test-dir build --output-on-failure

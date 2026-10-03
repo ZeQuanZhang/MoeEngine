@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "fetched_backends": [
+    {
+      "id": "llama.cpp",
+      "repository": "https://github.com/ggml-org/llama.cpp.git",
+      "revision": "4e97ac86ebe2c4cb8212d98d2641ad6768810896",
+      "tag": "b10666",
+      "license": "MIT",
+      "patch": "patches/llama.cpp.patch",
+      "patch_sha256": "bb0c902fcbbf970338f2913f848233ef60efc7907538a7bf6bb80decceb18f2b"
+    },
+    {
+      "id": "deepseek-v4-flash-0731-in-c",
+      "repository": "https://github.com/shyringo/deepseek-v4-flash-0731-in-c.git",
+      "revision": "23dd88d6f439883c942b09395a2fad6105cd5470",
+      "tag": "v0.1.1",
+      "license": "Apache-2.0",
+      "patch": "patches/deepseek-v4-flash-0731-in-c.patch",
+      "patch_sha256": "3b95c4076dfdabe824c1d8256469c324c4ccc5035cfed5eef34a18c7a4fa7655"
+    }
+  ],
+  "source_snapshots": [
+    {
+      "id": "Palm-Infra",
+      "repository": "https://github.com/TencentYoutuResearch/Palm-Infra",
+      "upstream_revision": "051305b467b785b19fb16a90ed6e3604fb86f773",
+      "archive_sha256": "6b6435e8b2e7b8ce5ff07c76b311649a1883dc3cf9c21b61f58eeb1b5025b3a0",
+      "license": "Apache-2.0",
+      "note": "Locally modified source snapshot. Retained in full because the source was obtained as an archive, without a Git baseline."
+    },
+    {
+      "id": "Mference",
+      "repository": "https://github.com/NeelM0906/Mference",
+      "upstream_revision": null,
+      "license": "MIT; Apache-2.0 derived portions; MLX MIT notices",
+      "note": "Locally available source snapshot; exact upstream commit is not recorded. Runtime, kernels, products, tests and lockfile retained in full."
+    }
+  ]
+}

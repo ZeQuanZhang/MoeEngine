@@ -1,0 +1,23 @@
+Engine: expert RAM cache pages will be locked on demand
+Engine: SSD cache uses a shared global capacity pool
+Engine: SSD eviction policy is moeengine-adaptive
+Engine: loaded package /path/to/MoeEngine/artifacts/deepseek-v4-flash-0731/mollm/deepseek_v4_flash_native.mollm (156712.8 MB, 1285 weights, prefill_seq=32, weights=mmap)
+Engine: locked 1211.7 MB of dense mmap weights and 7916.1 MB of CPU sidecars (FP8-Q8 4552.5 MB, FP8-BF16 1442.8 MB, other 1920.8 MB)
+      150.76 real       399.92 user       145.60 sys
+         16696967168  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1749692  page reclaims
+              618090  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+              126568  voluntary context switches
+             3605016  involuntary context switches
+       3207845256193  instructions retired
+       1174456680978  cycles elapsed
+         13180881256  peak memory footprint

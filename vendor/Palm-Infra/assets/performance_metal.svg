@@ -1,0 +1,71 @@
+<svg width="1500" height="946" viewBox="0 0 1500 946" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">mollm Metal throughput comparison</title>
+  <desc id="desc">Median pp256 and tg64 from context 256 on Apple M5 Pro, comparing mollm with llama.cpp Metal across dense, recurrent, and MoE models, including Hy-MT2-30B-A3B.</desc>
+  <rect width="1500" height="946" fill="#fff"/>
+  <style>
+    .title{font:700 26px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#101828}.subtitle{font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#667085}.head{font:700 17px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#101828}.section{font:700 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#101828}.label{font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#344054}.value{font:10px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#344054}.tick{font:10px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#667085}.m{fill:#2563eb}.l{fill:#94a3b8}.grid{stroke:#eaecf0;stroke-width:1}.axis{stroke:#cbd5e1;stroke-width:1}
+  </style>
+  <text x="38" y="44" class="title">Metal throughput comparison</text>
+  <text x="38" y="68" class="subtitle">Apple M5 Pro · pp256 + tg64 from context 256 · warmup=3 · independent process medians · tokens/s</text>
+  <rect x="1260" y="36" width="15" height="10" rx="2" class="m"/><text x="1282" y="46" class="label">mollm</text>
+  <rect x="1360" y="36" width="15" height="10" rx="2" class="l"/><text x="1382" y="46" class="label">llama.cpp</text>
+
+  <text x="260" y="105" class="head">Prefill pp256</text><text x="850" y="105" class="head">Decode tg64 @ context 256</text>
+  <text x="260" y="125" class="subtitle">0–11000 tokens/s</text><text x="850" y="125" class="subtitle">0–300 tokens/s</text>
+  <line x1="260" y1="140" x2="260" y2="868" class="axis"/><line x1="850" y1="140" x2="850" y2="868" class="axis"/>
+  <line x1="470" y1="140" x2="470" y2="868" class="grid"/><line x1="680" y1="140" x2="680" y2="868" class="grid"/>
+  <line x1="1060" y1="140" x2="1060" y2="868" class="grid"/><line x1="1270" y1="140" x2="1270" y2="868" class="grid"/>
+  <text x="256" y="886" class="tick">0</text><text x="457" y="886" class="tick">5500</text><text x="663" y="886" class="tick">11000</text>
+  <text x="846" y="886" class="tick">0</text><text x="1048" y="886" class="tick">150</text><text x="1258" y="886" class="tick">300</text>
+
+  <text x="38" y="158" class="section">FP16</text>
+  <text x="38" y="188" class="label">Qwen3.5-0.8B</text>
+  <rect x="260" y="171" width="326.6" height="8" rx="2" class="m"/><rect x="260" y="183" width="310.4" height="8" rx="2" class="l"/><text x="594" y="179" class="value">8553.51</text><text x="577" y="191" class="value">8129.48</text>
+  <rect x="850" y="171" width="191.4" height="8" rx="2" class="m"/><rect x="850" y="183" width="188.3" height="8" rx="2" class="l"/><text x="1048" y="179" class="value">136.75</text><text x="1045" y="191" class="value">134.48</text>
+  <text x="38" y="234" class="label">Youtu-LLM-2B</text>
+  <rect x="260" y="217" width="196.0" height="8" rx="2" class="m"/><rect x="260" y="229" width="146.5" height="8" rx="2" class="l"/><text x="463" y="225" class="value">5133.53</text><text x="414" y="237" class="value">3837.40</text>
+  <rect x="850" y="217" width="87.8" height="8" rx="2" class="m"/><rect x="850" y="229" width="83.9" height="8" rx="2" class="l"/><text x="945" y="225" class="value">62.74</text><text x="941" y="237" class="value">59.91</text>
+  <text x="38" y="280" class="label">Qwen3.5-4B</text>
+  <rect x="260" y="263" width="72.2" height="8" rx="2" class="m"/><rect x="260" y="275" width="78.6" height="8" rx="2" class="l"/><text x="339" y="271" class="value">1889.71</text><text x="346" y="283" class="value">2058.98</text>
+  <rect x="850" y="263" width="43.5" height="8" rx="2" class="m"/><rect x="850" y="275" width="41.7" height="8" rx="2" class="l"/><text x="900" y="271" class="value">31.06</text><text x="899" y="283" class="value">29.79</text>
+  <text x="38" y="326" class="label">RWKV7-1.5B</text>
+  <rect x="260" y="309" width="138.5" height="8" rx="2" class="m"/><rect x="260" y="321" width="142.1" height="8" rx="2" class="l"/><text x="406" y="317" class="value">3628.36</text><text x="409" y="329" class="value">3722.95</text>
+  <rect x="850" y="309" width="108.8" height="8" rx="2" class="m"/><rect x="850" y="321" width="101.5" height="8" rx="2" class="l"/><text x="966" y="317" class="value">77.73</text><text x="959" y="329" class="value">72.51</text>
+
+  <text x="38" y="374" class="section">W8 / Q8_0</text>
+  <text x="38" y="404" class="label">Qwen3.5-0.8B</text>
+  <rect x="260" y="387" width="349.2" height="8" rx="2" class="m"/><rect x="260" y="399" width="326.6" height="8" rx="2" class="l"/><text x="616" y="395" class="value">9146.00</text><text x="594" y="407" class="value">8552.66</text>
+  <rect x="850" y="387" width="296.5" height="8" rx="2" class="m"/><rect x="850" y="399" width="281.9" height="8" rx="2" class="l"/><text x="1153" y="395" class="value">211.76</text><text x="1139" y="407" class="value">201.36</text>
+  <text x="38" y="450" class="label">Youtu-LLM-2B</text>
+  <rect x="260" y="433" width="191.9" height="8" rx="2" class="m"/><rect x="260" y="445" width="149.1" height="8" rx="2" class="l"/><text x="459" y="441" class="value">5025.13</text><text x="416" y="453" class="value">3903.74</text>
+  <rect x="850" y="433" width="150.2" height="8" rx="2" class="m"/><rect x="850" y="445" width="132.2" height="8" rx="2" class="l"/><text x="1007" y="441" class="value">107.32</text><text x="989" y="453" class="value">94.40</text>
+  <text x="38" y="496" class="label">Qwen3.5-4B</text>
+  <rect x="260" y="479" width="86.9" height="8" rx="2" class="m"/><rect x="260" y="491" width="81.8" height="8" rx="2" class="l"/><text x="354" y="487" class="value">2277.17</text><text x="349" y="499" class="value">2143.06</text>
+  <rect x="850" y="479" width="78.6" height="8" rx="2" class="m"/><rect x="850" y="491" width="70.4" height="8" rx="2" class="l"/><text x="936" y="487" class="value">56.16</text><text x="927" y="499" class="value">50.27</text>
+  <text x="38" y="542" class="label">RWKV7-1.5B</text>
+  <rect x="260" y="525" width="135.0" height="8" rx="2" class="m"/><rect x="260" y="537" width="143.4" height="8" rx="2" class="l"/><text x="402" y="533" class="value">3536.64</text><text x="410" y="545" class="value">3755.11</text>
+  <rect x="850" y="525" width="210.5" height="8" rx="2" class="m"/><rect x="850" y="537" width="145.1" height="8" rx="2" class="l"/><text x="1068" y="533" class="value">150.38</text><text x="1002" y="545" class="value">103.61</text>
+
+  <text x="38" y="590" class="section">W4 / Q4_0</text>
+  <text x="38" y="620" class="label">Qwen3.5-0.8B</text>
+  <rect x="260" y="603" width="399.9" height="8" rx="2" class="m"/><rect x="260" y="615" width="340.0" height="8" rx="2" class="l"/><text x="667" y="611" class="value">10473.47</text><text x="607" y="623" class="value">8905.10</text>
+  <rect x="850" y="603" width="401.4" height="8" rx="2" class="m"/><rect x="850" y="615" width="352.6" height="8" rx="2" class="l"/><text x="1258" y="611" class="value">286.75</text><text x="1210" y="623" class="value">251.83</text>
+  <text x="38" y="666" class="label">Youtu-LLM-2B</text>
+  <rect x="260" y="649" width="186.2" height="8" rx="2" class="m"/><rect x="260" y="661" width="156.5" height="8" rx="2" class="l"/><text x="453" y="657" class="value">4876.37</text><text x="424" y="669" class="value">4098.96</text>
+  <rect x="850" y="649" width="226.0" height="8" rx="2" class="m"/><rect x="850" y="661" width="196.6" height="8" rx="2" class="l"/><text x="1083" y="657" class="value">161.40</text><text x="1054" y="669" class="value">140.46</text>
+  <text x="38" y="712" class="label">Qwen3.5-4B</text>
+  <rect x="260" y="695" width="90.6" height="8" rx="2" class="m"/><rect x="260" y="707" width="84.5" height="8" rx="2" class="l"/><text x="358" y="703" class="value">2373.40</text><text x="351" y="715" class="value">2211.84</text>
+  <rect x="850" y="695" width="126.3" height="8" rx="2" class="m"/><rect x="850" y="707" width="106.6" height="8" rx="2" class="l"/><text x="983" y="703" class="value">90.21</text><text x="964" y="715" class="value">76.11</text>
+  <text x="38" y="758" class="label">RWKV7-1.5B mixed W4G32</text>
+  <rect x="260" y="741" width="87.8" height="8" rx="2" class="m"/><rect x="260" y="753" width="144.1" height="8" rx="2" class="l"/><text x="355" y="749" class="value">2299.03</text><text x="411" y="761" class="value">3775.16</text>
+  <rect x="850" y="741" width="183.5" height="8" rx="2" class="m"/><rect x="850" y="753" width="185.6" height="8" rx="2" class="l"/><text x="1040" y="749" class="value">131.07</text><text x="1043" y="761" class="value">132.54</text>
+  <text x="38" y="804" class="label">Qwen3-30B-A3B W4G128</text>
+  <rect x="260" y="787" width="136.9" height="8" rx="2" class="m"/><rect x="260" y="799" width="65.9" height="8" rx="2" class="l"/><text x="404" y="795" class="value">3585.93</text><text x="333" y="807" class="value">1710.91</text>
+  <rect x="850" y="787" width="153.4" height="8" rx="2" class="m"/><rect x="850" y="799" width="132.3" height="8" rx="2" class="l"/><text x="1010" y="795" class="value">109.57</text><text x="989" y="807" class="value">94.47</text>
+
+  <text x="38" y="850" class="label">Hy-MT2-30B-A3B W4G128</text>
+  <rect x="260" y="833" width="125.6" height="8" rx="2" class="m"/><text x="393" y="841" class="value">3289.40</text><text x="260" y="853" class="value">—</text>
+  <rect x="850" y="833" width="137.3" height="8" rx="2" class="m"/><text x="994" y="841" class="value">98.09</text><text x="850" y="853" class="value">—</text>
+
+  <text x="38" y="921" class="subtitle">Hy-MT2 has no matched llama.cpp package. Complete tables, deltas, protocol, and long-context scaling: docs/performance.md</text>
+</svg>

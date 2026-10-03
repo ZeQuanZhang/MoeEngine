@@ -1,0 +1,85 @@
+diff --git a/src/cli/dsv4_run.c b/src/cli/dsv4_run.c
+index 5246efc..13b245e 100644
+--- a/src/cli/dsv4_run.c
++++ b/src/cli/dsv4_run.c
+@@ -10,6 +10,9 @@
+  * asks for logits), then decodes greedily. Generated text goes to stdout; the
+  * complete token ID audit line goes to stderr.
+  */
++#ifdef __APPLE__
++#define _DARWIN_C_SOURCE
++#endif
+ #define _POSIX_C_SOURCE 200809L
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -19,6 +22,10 @@
+ #include <math.h>
+ #include <signal.h>
+ #include <time.h>
++#ifdef __APPLE__
++#include <sys/types.h>
++#include <sys/sysctl.h>
++#endif
+ 
+ #include "dsv4.h"
+ #include "dsv4_internal.h"
+@@ -101,6 +108,16 @@ static double linux_available_gib(void)
+ 
+ static double automatic_memory_gib(double *visible_gib, double *available_gib)
+ {
++#ifdef __APPLE__
++    uint64_t memory_bytes = 0;
++    size_t memory_bytes_size = sizeof memory_bytes;
++    if (sysctlbyname("hw.memsize", &memory_bytes, &memory_bytes_size, NULL, 0) != 0 ||
++        memory_bytes == 0) {
++        *visible_gib = 0.0;
++        *available_gib = 0.0;
++        return 2.0;
++    }
++#else
+     long pages = sysconf(_SC_PHYS_PAGES);
+     long page_size = sysconf(_SC_PAGESIZE);
+     if (pages <= 0 || page_size <= 0) {
+@@ -108,9 +125,14 @@ static double automatic_memory_gib(double *visible_gib, double *available_gib)
+         *available_gib = 0.0;
+         return 2.0;
+     }
++#endif
+ 
+     const long double gib = 1024.0L * 1024.0L * 1024.0L;
++#ifdef __APPLE__
++    long double visible = (long double)memory_bytes / gib;
++#else
+     long double visible = (long double)pages * (long double)page_size / gib;
++#endif
+     long double budget = floorl(visible * 2.0L / 3.0L);
+     *available_gib = linux_available_gib();
+     if (*available_gib > 0.0) {
+diff --git a/src/dsv4/dsv4_model.c b/src/dsv4/dsv4_model.c
+index 79ea0fe..d2d587f 100644
+--- a/src/dsv4/dsv4_model.c
++++ b/src/dsv4/dsv4_model.c
+@@ -8543,7 +8543,11 @@ void dsv4_model_report(const DSV4Model *m)
+ {
+     struct rusage ru;
+     getrusage(RUSAGE_SELF, &ru);
+-    long peak = (long)ru.ru_maxrss;    /* KiB on Linux/macOS */
++#ifdef __APPLE__
++    unsigned long long peak_bytes = (unsigned long long)ru.ru_maxrss;
++#else
++    unsigned long long peak_bytes = (unsigned long long)ru.ru_maxrss * 1024ULL;
++#endif
+     fprintf(stderr, "report: forward_steps=%ld threads=%d expert_io_workers=%d "
+             "expert_access=%s head_access=%s layer_access=%s context=%d dspark=%s\n",
+             m->forward_steps, m->threads,
+@@ -8631,8 +8635,8 @@ void dsv4_model_report(const DSV4Model *m)
+                 m->time_expert_read, m->time_expert_io, m->time_hc,
+                 m->time_release, m->time_head, m->time_total - known);
+     }
+-    fprintf(stderr, "report: peak RSS=%.2f GiB (%ld bytes from rusage)\n",
+-            (double)peak / (1024.0 * 1024.0), peak * 1024L);
++    fprintf(stderr, "report: peak RSS=%.2f GiB (%llu bytes from rusage)\n",
++            (double)peak_bytes / (1024.0 * 1024.0 * 1024.0), peak_bytes);
+     fprintf(stderr, "report: page faults major=%ld minor=%ld context switches "
+             "voluntary=%ld involuntary=%ld\n", (long)ru.ru_majflt,
+             (long)ru.ru_minflt, (long)ru.ru_nvcsw, (long)ru.ru_nivcsw);

@@ -1,0 +1,34 @@
+# Local environments and credentials
+.venv/
+.uv-cache/
+.hf-home/
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.DS_Store
+*.egg-info/
+
+# Downloaded checkpoints and generated artifacts
+/artifacts/
+/models/
+/checkpoints/
+*.safetensors
+*.gguf
+*.gturbo
+*.mollm
+
+# Build output and downloaded backend worktrees
+build/
+build-*/
+build_*/
+dist/
+main
+.coverage
+.pytest_cache/
+/vendor/llama.cpp/
+/vendor/deepseek-v4-flash-0731-in-c/
+vendor/**/.build*/
+vendor/**/build*/
+vendor/**/.swiftpm/

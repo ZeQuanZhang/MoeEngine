@@ -1,0 +1,7 @@
+Engine: expert RAM cache pages will be locked on demand
+Engine: SSD cache uses a shared global capacity pool
+Engine: SSD eviction policy is moeengine-adaptive
+Engine: loaded package /path/to/MoeEngine/artifacts/deepseek-v4-flash-0731/mollm/deepseek_v4_flash_native.mollm (156712.8 MB, 1285 weights, prefill_seq=32, weights=mmap)
+Engine: locked 1211.5 MB of dense mmap weights and 9358.9 MB of CPU sidecars (FP8-Q8 4552.5 MB, FP8-BF16 2885.7 MB, other 1920.8 MB)
+      122.17 real       291.15 user       109.51 sys
+time: sysctl kern.clockrate: Operation not permitted

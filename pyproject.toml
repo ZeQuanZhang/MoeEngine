@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "moeengine"
+version = "0.1.0"
+description = "Model-aware virtual memory experiments for routed MoE experts"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "MoeEngine contributors" }]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/ZeQuanZhang/MoeEngine"
+Issues = "https://github.com/ZeQuanZhang/MoeEngine/issues"
+
+[project.optional-dependencies]
+hub = ["huggingface_hub>=1.0"]
+gguf = ["gguf>=0.19"]
+
+[project.scripts]
+moeengine = "moeengine.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/moeengine"]

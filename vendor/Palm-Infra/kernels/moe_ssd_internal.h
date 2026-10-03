@@ -1,0 +1,92 @@
+#pragma once
+
+#include "kernels/moe_ssd.h"
+
+#include <cstdint>
+#include <memory>
+
+#include <sys/mman.h>
+
+// pread() overwrites every byte in a component. std::vector::resize() clears
+// these multi-megabyte buffers first, making request_many CPU-bound as the
+// cache grows. Allocate them uninitialized instead.
+struct MoeSsdCache::ByteBuffer {
+    std::unique_ptr<uint8_t[]> storage;
+    size_t length = 0;
+    bool locked = false;
+
+    ~ByteBuffer() {
+        unlock();
+    }
+
+    void resize(size_t bytes) {
+        if (bytes == length) return;
+        unlock();
+        storage.reset(bytes == 0 ? nullptr : new uint8_t[bytes]);
+        length = bytes;
+    }
+    bool lock() {
+        if (locked || length == 0) return true;
+        locked = mlock(storage.get(), length) == 0;
+        return locked;
+    }
+    void unlock() {
+        if (locked) {
+            munlock(storage.get(), length);
+            locked = false;
+        }
+    }
+    bool empty() const { return length == 0; }
+    size_t size() const { return length; }
+    uint8_t* data() { return storage.get(); }
+    const uint8_t* data() const { return storage.get(); }
+};
+
+struct MoeSsdCache::Entry {
+    enum class State {
+        Loading,
+        LoadingFailed,
+        Ready,
+        Failed,
+    };
+
+    const MoeSsdTensorSource* gate_up = nullptr;
+    const MoeSsdTensorSource* down = nullptr;
+    int expert = -1;
+    uint64_t used_at = 0;
+    uint64_t access_count = 0;
+    State state = State::Loading;
+    int pending_reads = 0;
+    bool fresh_miss = false;  // first acquire after a queued miss is not a hit
+    bool speculative = false;
+    // Immutable for one residency lifetime. Unlike speculative, this remains
+    // true after a demand promotes or consumes an in-flight prefetch.
+    bool load_origin_speculative = false;
+    bool retained = false;
+    uint64_t forward_epoch = 0;
+    // Set when the real router names this expert in the active layer.  This
+    // is stronger than forward_epoch: speculative future entries share the
+    // same forward epoch but are not on the immediate compute critical path.
+    uint64_t demand_epoch = 0;
+    uint64_t prediction_epoch = 0;
+    float prediction_confidence = 0.0f;
+    uint64_t load_started_ns = 0;
+    uint64_t load_latency_ns = 0;
+    ByteBuffer gate_up_data;
+    ByteBuffer gate_up_scales;
+    ByteBuffer down_data;
+    ByteBuffer down_scales;
+
+    size_t bytes() const {
+        return gate_up_data.size() + gate_up_scales.size() +
+               down_data.size() + down_scales.size();
+    }
+
+    bool is_loading() const {
+        return state == State::Loading || state == State::LoadingFailed;
+    }
+    bool is_failed() const {
+        return state == State::LoadingFailed || state == State::Failed;
+    }
+    bool is_ready() const { return state == State::Ready; }
+};

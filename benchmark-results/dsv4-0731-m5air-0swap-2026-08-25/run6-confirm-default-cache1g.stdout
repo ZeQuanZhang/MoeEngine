@@ -1,0 +1,99 @@
+load_ms=24535.01
+load_warmup_ms=0.00
+load_warmup_mb=0.0
+threads=4
+prompt_tokens=8
+generated_tokens=128
+decode_tokens=127
+ttft_ms=3721.21
+tpot_ms=795.25
+prefill_tps=2.15
+decode_tps=1.26
+prefill_ms=3721.21
+decode_ms=100996.93
+total_ms=104720.69
+peak_rss_mb=14794.8
+moe_ssd_cache_mb=1073.7
+moe_ssd_io_workers=8
+moe_ssd_resident_mb=1069.5
+moe_ssd_prefill_hits=0
+moe_ssd_prefill_misses=1209
+moe_ssd_prefill_evictions=1129
+moe_ssd_prefill_logical_load_mb=16163.537
+moe_ssd_prefill_demand_origin_load_mb=16163.537
+moe_ssd_prefill_prefetch_origin_load_mb=0.000
+moe_ssd_prefill_useful_prefetch_mb=0.000
+moe_ssd_prefill_unused_prefetch_evicted_mb=0.000
+moe_ssd_prefill_expert_bytes_acquired_mb=16163.537
+moe_ssd_prefill_wait_ms=1989.251
+moe_ssd_prefill_slot_waits=0
+moe_ssd_prefill_slot_wait_ms=0.000
+moe_ssd_prefill_logical_load_mb_per_prompt_token=2020.442112
+moe_ssd_prefill_demand_origin_load_mb_per_prompt_token=2020.442112
+moe_ssd_prefill_prefetch_origin_load_mb_per_prompt_token=0.000000
+moe_ssd_prefill_expert_bytes_acquired_mb_per_prompt_token=2020.442112
+moe_ssd_prefill_wait_ms_per_prompt_token=248.656386
+moe_ssd_decode_hits=5092
+moe_ssd_decode_misses=16105
+moe_ssd_decode_evictions=28850
+moe_ssd_decode_logical_load_mb=385705.574
+moe_ssd_decode_demand_origin_load_mb=215313.285
+moe_ssd_decode_prefetch_origin_load_mb=170392.289
+moe_ssd_decode_useful_prefetch_mb=154669.941
+moe_ssd_decode_unused_prefetch_evicted_mb=15722.349
+moe_ssd_decode_expert_bytes_acquired_mb=438059.926
+moe_ssd_decode_wait_ms=18317.202
+moe_ssd_decode_slot_waits=0
+moe_ssd_decode_slot_wait_ms=0.000
+moe_ssd_decode_logical_load_mb_per_decode_token=3037.051767
+moe_ssd_decode_demand_origin_load_mb_per_decode_token=1695.380198
+moe_ssd_decode_prefetch_origin_load_mb_per_decode_token=1341.671569
+moe_ssd_decode_expert_bytes_acquired_mb_per_decode_token=3449.290752
+moe_ssd_decode_wait_ms_per_decode_token=144.229939
+moe_ssd_decode_cross_layer_tasks=5334 moe_ssd_decode_cross_layer_dropped=0 moe_ssd_decode_cross_layer_experts=12745 moe_ssd_decode_cross_layer_used=11569 moe_ssd_decode_cross_layer_rejected=781
+moe_ssd_decode_cross_layer_rank_accuracy=0.981,0.940,0.874,0.752,0.604,0.448
+moe_ssd_decode_cross_layer_rank_confidence=1.000,0.774,0.642,0.555,0.495,0.453
+moe_ssd_decode_layer_summary_wait_ms=18317.202 prediction_accuracy=0.767 unused_prefetch_evictions=1176 short_term_reloads=10101
+moe_ssd_decode_layer_stats=0:762:0:762:813.412:0:0:0:0:0:23;1:762:0:762:357.363:762:762:762:762:0:18;2:762:0:762:1136.105:762:762:762:162:0:18;3:762:3:759:531.602:762:534:390:388:35:233;4:762:4:758:443.415:762:466:390:385:53:268;5:762:6:756:444.802:762:516:390:382:38:353;6:762:2:760:437.886:762:509:390:379:41:237;7:762:4:758:396.354:762:561:390:388:35:332;8:762:3:759:484.444:762:552:390:377:35:242;9:762:5:757:472.151:762:596:390:385:23:293;10:762:7:755:442.669:762:629:390:384:14:285;11:762:11:751:391.651:762:575:390:376:34:341;12:762:16:746:398.812:762:597:390:371:31:391;13:762:43:719:446.895:762:598:390:354:24:333;14:762:92:670:346.724:762:618:390:329:18:311;15:762:119:643:407.734:762:625:390:303:18:271;16:762:171:591:321.463:762:595:390:278:28:233;17:762:242:520:347.750:762:633:390:204:7:199;18:762:169:593:373.698:762:627:390:273:14:203;19:762:55:707:670.462:762:378:390:359:126:193;20:762:158:604:501.776:762:550:390:218:22:203;21:762:159:603:377.089:762:609:390:277:19:190;22:762:141:621:401.562:762:630:390:297:14:200;23:762:129:633:454.003:762:508:390:299:53:191;24:762:299:463:293.083:762:602:390:184:34:233;25:762:258:504:304.526:762:612:390:190:14:183;26:762:269:493:367.813:762:536:390:200:37:196;27:762:198:564:404.953:762:587:390:243:24:177;28:762:226:536:404.123:762:608:390:213:12:160;29:762:209:553:352.429:762:548:390:246:34:190;30:762:227:535:325.058:762:638:390:225:10:169;31:762:163:599:400.897:762:575:390:271:21:188;32:762:227:535:354.085:762:489:390:231:51:191;33:762:234:528:338.885:762:642:390:218:6:177;34:762:225:537:424.599:762:608:390:222:19:178;35:762:47:715:462.896:762:508:390:358:46:189;36:762:260:502:420.529:762:471:390:216:78:202;37:762:269:493:318.185:762:611:390:188:13:181;38:762:259:503:313.321:762:671:390:197:2:220;39:762:151:611:533.499:762:516:390:281:39:217;40:762:21:741:320.941:762:644:390:364:12:507;41:762:9:753:325.602:762:666:390:380:20:505;42:762:2:760:251.955:762:573:390:388:22:477
+pool_active_mb=23.5 pool_peak_mb=212.0 pool_freelist_mb=188.5 pool_acquires=2060 pool_releases=1350
+prefill_pool_active_mb=0.0 prefill_pool_peak_mb=188.5 prefill_pool_freelist_mb=188.5 prefill_pool_acquires=1350 prefill_pool_releases=1350
+decode_pool_active_mb=23.5 decode_pool_peak_mb=23.5 decode_pool_freelist_mb=0.0 decode_pool_acquires=710 decode_pool_releases=0
+hit_eos=false
+generated_text=## 会唱歌的旧钟表
+
+老钟表匠陈师傅的铺子，藏在青石板巷子的最深处。铺面不大，木门上挂着一块褪色的招牌，上面画着一只金色的怀表，指针永远停在三点十七分。
+
+镇上的人都说，陈师傅的手艺是祖传的，能修好任何钟表。但更神奇的是，他铺子里那座落地钟——每到整点，它不报时，而是会唱一首歌。有时是江南小调，有时是童谣，有时是没人听过的古老旋律。没人知道那座钟的来历，
+pack_a_ms=4.13 pack_a_calls=365 q8_quant_a_ms=1547.55 q8_quant_a_calls=112337 matmul_ms=65123.25 pack_pct=0.0% q8_quant_a_pct=2.4%
+
+[prefill_profile]
+  op                              calls   total_ms     avg_ms     pct
+  ---                               ---        ---        ---     ---
+  MOE                                43    3031.59     70.502   81.8%
+  DSV4_GROUPED_LINEAR                43     228.77      5.320    6.2%
+  MATMUL                            172     227.98      1.325    6.1%
+  DSV4_COMPRESSOR                    41      80.22      1.957    2.2%
+  HC_PRE                             86      44.91      0.522    1.2%
+  DSV4_INDEXER                       21      42.33      2.016    1.1%
+  DSV4_SPARSE_ATTN                   43      37.53      0.873    1.0%
+  HC_POST                            86      10.82      0.126    0.3%
+  RMS_NORM                          173       2.16      0.012    0.1%
+  TILE                                1       0.53      0.528    0.0%
+  HC_HEAD                             1       0.13      0.132    0.0%
+  SLICE                              86       0.06      0.001    0.0%
+
+[decode_profile]
+  op                              calls   total_ms     avg_ms     pct
+  ---                               ---        ---        ---     ---
+  MOE                              5461   66827.50     12.237   67.9%
+  MATMUL                          21844   11010.80      0.504   11.2%
+  DSV4_GROUPED_LINEAR              5461    9244.23      1.693    9.4%
+  DSV4_SPARSE_ATTN                 5461    4052.71      0.742    4.1%
+  DSV4_COMPRESSOR                  5207    2395.80      0.460    2.4%
+  HC_PRE                          10922    2079.27      0.190    2.1%
+  DSV4_INDEXER                     2667    1601.08      0.600    1.6%
+  HC_POST                         10922     939.96      0.086    1.0%
+  RMS_NORM                        21971     140.29      0.006    0.1%
+  TILE                              127      75.67      0.596    0.1%
+  HC_HEAD                           127       9.08      0.071    0.0%
+  SLICE                           10922       8.70      0.001    0.0%

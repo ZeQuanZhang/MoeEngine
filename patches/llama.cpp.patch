@@ -1,0 +1,405 @@
+diff --git a/examples/simple/simple.cpp b/examples/simple/simple.cpp
+index 9f0a25d..6b97487 100644
+--- a/examples/simple/simple.cpp
++++ b/examples/simple/simple.cpp
+@@ -1,4 +1,6 @@
+ #include "llama.h"
++#include "ggml-backend.h"
++#include <algorithm>
+ #include <clocale>
+ #include <cstdio>
+ #include <cstring>
+@@ -85,6 +87,11 @@ int main(int argc, char ** argv) {
+ 
+     llama_model_params model_params = llama_model_default_params();
+     model_params.n_gpu_layers = ngl;
++    model_params.tensor_read_lazy = LLAMA_TENSOR_READ_LAZY_ON;
++    ggml_backend_dev_t cpu_devices[] = { ggml_backend_dev_by_name("BLAS"), nullptr };
++    if (ngl == 0 && cpu_devices[0] != nullptr) {
++        model_params.devices = cpu_devices;
++    }
+ 
+     llama_model * model = llama_model_load_from_file(model_path.c_str(), model_params);
+ 
+@@ -110,7 +117,7 @@ int main(int argc, char ** argv) {
+ 
+     llama_context_params ctx_params = llama_context_default_params();
+     // n_ctx is the context size
+-    ctx_params.n_ctx = n_prompt + n_predict - 1;
++    ctx_params.n_ctx = std::max(1024, n_prompt + n_predict - 1);
+     // n_batch is the maximum number of tokens that can be processed in a single call to llama_decode
+     ctx_params.n_batch = n_prompt;
+     // enable performance counters
+diff --git a/ggml/src/ggml-cpu/ggml-cpu.c b/ggml/src/ggml-cpu/ggml-cpu.c
+index 87ac0a7..0eb5eff 100644
+--- a/ggml/src/ggml-cpu/ggml-cpu.c
++++ b/ggml/src/ggml-cpu/ggml-cpu.c
+@@ -197,11 +197,279 @@ typedef void * thread_ret_t;
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <unistd.h>
++#if defined(_POSIX_MAPPED_FILES)
++#include <sys/mman.h>
++#endif
+ 
+ #endif
+ 
+ typedef pthread_t ggml_thread_t;
+ 
++// MoeEngine: bounded, router-aware residency for file-backed MoE expert banks.
++//
++// This is deliberately opt-in (MOEENGINE_EXPERT_CACHE_SLOTS > 0) and only acts
++// on CPU_Mapped tensors. Therefore POSIX_MADV_DONTNEED discards clean GGUF
++// pages; it never targets anonymous/repacked weights and never writes them to
++// swap. Other platforms retain the normal ggml behavior.
++#if defined(_POSIX_MAPPED_FILES)
++#define MOEENGINE_MAX_BANKS   512
++#define MOEENGINE_MAX_EXPERTS 2048
++
++struct moeengine_expert_bank {
++    const void * base;
++    size_t slice_size;
++    int n_experts;
++    int n_resident;
++    uint64_t tick;
++    uint64_t * last_used;
++    uint32_t * frequency;
++    uint8_t * resident;
++    int reset_done;
++};
++
++struct moeengine_expert_cache {
++    pthread_mutex_t mutex;
++    int initialized;
++    int slots;
++    int report_interval;
++    int use_mincore;
++    int reset_on_register;
++    int n_banks;
++    uint64_t calls;
++    uint64_t requests;
++    uint64_t logical_hits;
++    uint64_t prefetches;
++    uint64_t evictions;
++    uint64_t pages_checked;
++    uint64_t pages_resident;
++    struct moeengine_expert_bank banks[MOEENGINE_MAX_BANKS];
++};
++
++static struct moeengine_expert_cache moeengine_cache = {
++    .mutex = PTHREAD_MUTEX_INITIALIZER,
++};
++
++static int moeengine_env_int(const char * name, int fallback) {
++    const char * value = getenv(name);
++    if (value == NULL || value[0] == '\0') {
++        return fallback;
++    }
++    char * end = NULL;
++    const long parsed = strtol(value, &end, 10);
++    if (end == value || *end != '\0' || parsed < 0 || parsed > INT_MAX) {
++        return fallback;
++    }
++    return (int) parsed;
++}
++
++static void moeengine_cache_init(void) {
++    if (moeengine_cache.initialized) {
++        return;
++    }
++    moeengine_cache.slots = moeengine_env_int("MOEENGINE_EXPERT_CACHE_SLOTS", 0);
++    moeengine_cache.report_interval = moeengine_env_int("MOEENGINE_EXPERT_CACHE_REPORT", 0);
++    moeengine_cache.use_mincore = moeengine_env_int("MOEENGINE_EXPERT_CACHE_MINCORE", 0) != 0;
++    moeengine_cache.reset_on_register = moeengine_env_int("MOEENGINE_EXPERT_CACHE_RESET", 0) != 0;
++    moeengine_cache.initialized = 1;
++    if (moeengine_cache.slots > 0 || moeengine_cache.reset_on_register) {
++        fprintf(stderr, "[MoeEngine] mmap expert cache: slots/bank=%d, mincore=%s, reset=%s\n",
++                moeengine_cache.slots, moeengine_cache.use_mincore ? "on" : "off",
++                moeengine_cache.reset_on_register ? "on" : "off");
++    }
++}
++
++static struct moeengine_expert_bank * moeengine_get_bank(const struct ggml_tensor * weights) {
++    const int n_experts = (int) weights->ne[2];
++    const size_t slice_size = weights->nb[2];
++    for (int i = 0; i < moeengine_cache.n_banks; ++i) {
++        struct moeengine_expert_bank * bank = &moeengine_cache.banks[i];
++        if (bank->base == weights->data && bank->slice_size == slice_size && bank->n_experts == n_experts) {
++            return bank;
++        }
++    }
++    if (moeengine_cache.n_banks >= MOEENGINE_MAX_BANKS || n_experts <= 1 || n_experts > MOEENGINE_MAX_EXPERTS) {
++        return NULL;
++    }
++    struct moeengine_expert_bank * bank = &moeengine_cache.banks[moeengine_cache.n_banks++];
++    bank->base = weights->data;
++    bank->slice_size = slice_size;
++    bank->n_experts = n_experts;
++    bank->last_used = (uint64_t *) calloc((size_t) n_experts, sizeof(uint64_t));
++    bank->frequency = (uint32_t *) calloc((size_t) n_experts, sizeof(uint32_t));
++    bank->resident = (uint8_t *) calloc((size_t) n_experts, sizeof(uint8_t));
++    if (bank->last_used == NULL || bank->frequency == NULL || bank->resident == NULL) {
++        free(bank->last_used);
++        free(bank->frequency);
++        free(bank->resident);
++        memset(bank, 0, sizeof(*bank));
++        moeengine_cache.n_banks--;
++        return NULL;
++    }
++    return bank;
++}
++
++static void moeengine_page_range(const void * ptr, size_t size, uintptr_t * beg, uintptr_t * end) {
++    static size_t page_size = 0;
++    if (page_size == 0) {
++        page_size = (size_t) sysconf(_SC_PAGESIZE);
++    }
++    const uintptr_t mask = (uintptr_t) page_size - 1;
++    *beg = (uintptr_t) ptr & ~mask;
++    *end = ((uintptr_t) ptr + size + mask) & ~mask;
++}
++
++static void moeengine_count_resident_pages(const void * ptr, size_t size) {
++    uintptr_t beg, end;
++    moeengine_page_range(ptr, size, &beg, &end);
++    const size_t page_size = (size_t) sysconf(_SC_PAGESIZE);
++    const size_t n_pages = (end - beg) / page_size;
++    if (n_pages == 0 || n_pages > 4096) {
++        return;
++    }
++    char vec[4096];
++    if (mincore((void *) beg, end - beg, vec) != 0) {
++        return;
++    }
++    moeengine_cache.pages_checked += n_pages;
++    for (size_t i = 0; i < n_pages; ++i) {
++        moeengine_cache.pages_resident += (((unsigned char) vec[i]) & 1u) != 0;
++    }
++}
++
++static void moeengine_advise_prefetch(const void * ptr, size_t size) {
++    uintptr_t beg, end;
++    moeengine_page_range(ptr, size, &beg, &end);
++    if (beg < end) {
++        (void) posix_madvise((void *) beg, end - beg, POSIX_MADV_WILLNEED);
++    }
++}
++
++static void moeengine_advise_evict(const void * ptr, size_t size) {
++    // Only discard fully-owned interior pages so adjacent expert slices cannot
++    // evict each other's shared boundary page.
++    static size_t page_size = 0;
++    if (page_size == 0) {
++        page_size = (size_t) sysconf(_SC_PAGESIZE);
++    }
++    const uintptr_t mask = (uintptr_t) page_size - 1;
++    const uintptr_t raw_beg = (uintptr_t) ptr;
++    const uintptr_t raw_end = raw_beg + size;
++    const uintptr_t beg = (raw_beg + mask) & ~mask;
++    const uintptr_t end = raw_end & ~mask;
++    if (beg < end) {
++        (void) posix_madvise((void *) beg, end - beg, POSIX_MADV_DONTNEED);
++    }
++}
++
++static void moeengine_expert_cache_touch(const struct ggml_tensor * op) {
++    pthread_mutex_lock(&moeengine_cache.mutex);
++    moeengine_cache_init();
++    if ((moeengine_cache.slots <= 0 && !moeengine_cache.reset_on_register) ||
++            op->src[0] == NULL || op->src[2] == NULL) {
++        pthread_mutex_unlock(&moeengine_cache.mutex);
++        return;
++    }
++
++    const struct ggml_tensor * weights = op->src[0];
++    const struct ggml_tensor * ids = op->src[2];
++    if (weights->buffer == NULL || weights->data == NULL || weights->ne[2] <= 1 ||
++            ids->type != GGML_TYPE_I32) {
++        pthread_mutex_unlock(&moeengine_cache.mutex);
++        return;
++    }
++    const char * buffer_name = ggml_backend_buffer_name(weights->buffer);
++    if (buffer_name == NULL || strcmp(buffer_name, "CPU_Mapped") != 0) {
++        pthread_mutex_unlock(&moeengine_cache.mutex);
++        return;
++    }
++
++    struct moeengine_expert_bank * bank = moeengine_get_bank(weights);
++    if (bank == NULL) {
++        pthread_mutex_unlock(&moeengine_cache.mutex);
++        return;
++    }
++    if (moeengine_cache.reset_on_register && !bank->reset_done) {
++        moeengine_advise_evict(bank->base, bank->slice_size*(size_t) bank->n_experts);
++        bank->reset_done = 1;
++    }
++    if (moeengine_cache.slots <= 0) {
++        pthread_mutex_unlock(&moeengine_cache.mutex);
++        return;
++    }
++
++    uint8_t selected[MOEENGINE_MAX_EXPERTS] = { 0 };
++    bank->tick++;
++    moeengine_cache.calls++;
++    for (int64_t token = 0; token < ids->ne[1]; ++token) {
++        for (int64_t route = 0; route < ids->ne[0]; ++route) {
++            const int32_t expert = *(const int32_t *) ((const char *) ids->data + token*ids->nb[1] + route*ids->nb[0]);
++            if (expert < 0 || expert >= bank->n_experts || selected[expert]) {
++                continue;
++            }
++            selected[expert] = 1;
++            moeengine_cache.requests++;
++            const void * expert_ptr = (const char *) bank->base + (size_t) expert*bank->slice_size;
++            if (moeengine_cache.use_mincore) {
++                moeengine_count_resident_pages(expert_ptr, bank->slice_size);
++            }
++            if (bank->resident[expert]) {
++                moeengine_cache.logical_hits++;
++            } else {
++                moeengine_advise_prefetch(expert_ptr, bank->slice_size);
++                bank->resident[expert] = 1;
++                bank->n_resident++;
++                moeengine_cache.prefetches++;
++            }
++            bank->last_used[expert] = bank->tick;
++            if (bank->frequency[expert] < UINT32_MAX) {
++                bank->frequency[expert]++;
++            }
++        }
++    }
++
++    while (bank->n_resident > moeengine_cache.slots) {
++        int victim = -1;
++        uint64_t victim_score = UINT64_MAX;
++        for (int expert = 0; expert < bank->n_experts; ++expert) {
++            if (!bank->resident[expert] || selected[expert]) {
++                continue;
++            }
++            // Frequency-biased LRU: reuse history breaks near-recency ties,
++            // while sufficiently old experts still age out.
++            const uint64_t score = bank->last_used[expert] + 8u*MIN(bank->frequency[expert], 64u);
++            if (score < victim_score) {
++                victim = expert;
++                victim_score = score;
++            }
++        }
++        if (victim < 0) {
++            break; // a large prompt may temporarily select more than the cap
++        }
++        const void * victim_ptr = (const char *) bank->base + (size_t) victim*bank->slice_size;
++        moeengine_advise_evict(victim_ptr, bank->slice_size);
++        bank->resident[victim] = 0;
++        bank->n_resident--;
++        moeengine_cache.evictions++;
++    }
++
++    if (moeengine_cache.report_interval > 0 && moeengine_cache.calls % (uint64_t) moeengine_cache.report_interval == 0) {
++        const double hit_rate = moeengine_cache.requests == 0 ? 0.0 :
++                100.0*(double) moeengine_cache.logical_hits/(double) moeengine_cache.requests;
++        const double resident_rate = moeengine_cache.pages_checked == 0 ? 0.0 :
++                100.0*(double) moeengine_cache.pages_resident/(double) moeengine_cache.pages_checked;
++        fprintf(stderr, "[MoeEngine] calls=%" PRIu64 " banks=%d requests=%" PRIu64
++                " logical_hit=%.2f%% prefetch=%" PRIu64 " evict=%" PRIu64 " os_page_resident=%.2f%%\n",
++                moeengine_cache.calls, moeengine_cache.n_banks, moeengine_cache.requests, hit_rate,
++                moeengine_cache.prefetches, moeengine_cache.evictions, resident_rate);
++    }
++    pthread_mutex_unlock(&moeengine_cache.mutex);
++}
++#else
++static void moeengine_expert_cache_touch(const struct ggml_tensor * op) {
++    GGML_UNUSED(op);
++}
++#endif
++
+ #define GGML_THREADPOOL_N_THREADS_MASK (0xffffU)
+ #define GGML_THREADPOOL_N_THREADS_BITS (16)
+ 
+@@ -1715,6 +1983,15 @@ static void ggml_compute_forward(struct ggml_compute_params * params, struct ggm
+         return;
+     }
+ 
++    // Run before extra/repacked kernels so every CPU MUL_MAT_ID implementation
++    // observes the same router-aware residency policy.
++    if (tensor->op == GGML_OP_MUL_MAT_ID) {
++        if (params->ith == 0) {
++            moeengine_expert_cache_touch(tensor);
++        }
++        ggml_barrier(params->threadpool);
++    }
++
+     // extra_buffer op?
+     if (ggml_cpu_extra_compute_forward(params, tensor)) {
+         return;
+diff --git a/src/llama-model-loader.cpp b/src/llama-model-loader.cpp
+index d924102..c60b7ff 100644
+--- a/src/llama-model-loader.cpp
++++ b/src/llama-model-loader.cpp
+@@ -1073,6 +1073,8 @@ static ggml_backend_buffer_type_t select_weight_buft(const llama_hparams & hpara
+ struct ggml_tensor * llama_model_loader::create_tensor(
+         const llama_hparams & hparams, const buft_list_t * buft_list_cpu, const buft_list_t * buft_list_input, const buft_list_t * buft_list_output,
+         const buft_list_t * buft_list_layer, const LLM_TN_IMPL & tn, const std::initializer_list<int64_t> & ne, int flags) {
++    const char * moeengine_slots = std::getenv("MOEENGINE_EXPERT_CACHE_SLOTS");
++
+     auto ctx_for_buft = [&](ggml_backend_buffer_type_t buft) -> ggml_context * {
+         auto it = ctx_map.find(buft);
+         if (it == ctx_map.end()) {
+@@ -1214,6 +1216,14 @@ struct ggml_tensor * llama_model_loader::create_tensor(
+             }
+         }
+ 
++        // MoeEngine needs consolidated MoE banks to remain file-backed so the
++        // runtime router can prefetch and discard individual expert slices.
++        // Keep dense weights on their normal optimized/repacked paths.
++        if (use_mmap && moeengine_slots != nullptr &&
++                op == GGML_OP_MUL_MAT_ID && t_meta->ne[2] > 1) {
++            buft = ggml_backend_cpu_buffer_type();
++        }
++
+         // avoid using a host buffer when using mmap
+         auto * buft_dev = ggml_backend_buft_get_device(buft);
+         if (use_mmap && buft_dev && buft == ggml_backend_dev_host_buffer_type(buft_dev)) {
+@@ -1287,7 +1297,18 @@ struct ggml_tensor * llama_model_loader::create_tensor(
+         return NULL;
+     }
+ 
+-    if ((flags & TENSOR_READ_LAZY) && use_mmap && tensor_read_lazy != LLAMA_TENSOR_READ_LAZY_OFF) {
++    const bool moeengine_expert_bank =
++            tn.tensor == LLM_TENSOR_FFN_DOWN_EXPS ||
++            tn.tensor == LLM_TENSOR_FFN_GATE_EXPS ||
++            tn.tensor == LLM_TENSOR_FFN_UP_EXPS ||
++            tn.tensor == LLM_TENSOR_FFN_GATE_UP_EXPS ||
++            tn.tensor == LLM_TENSOR_FFN_DOWN_CHEXPS ||
++            tn.tensor == LLM_TENSOR_FFN_GATE_CHEXPS ||
++            tn.tensor == LLM_TENSOR_FFN_UP_CHEXPS;
++    const bool moeengine_read_lazy = moeengine_slots != nullptr && moeengine_expert_bank && cur->ne[2] > 1;
++
++    if (((flags & TENSOR_READ_LAZY) || moeengine_read_lazy) &&
++            use_mmap && tensor_read_lazy != LLAMA_TENSOR_READ_LAZY_OFF) {
+         // in auto mode, small tensors are cheap enough to keep resident
+         constexpr size_t auto_lazy_min_size = 4ull * 1024 * 1024 * 1024;
+         if (tensor_read_lazy == LLAMA_TENSOR_READ_LAZY_ON || ggml_nbytes(cur) > auto_lazy_min_size) {
+diff --git a/tools/llama-bench/llama-bench.cpp b/tools/llama-bench/llama-bench.cpp
+index bc14d15..2dafe93 100644
+--- a/tools/llama-bench/llama-bench.cpp
++++ b/tools/llama-bench/llama-bench.cpp
+@@ -1224,6 +1224,9 @@ struct cmd_params_instance {
+         }
+         mparams.split_mode    = split_mode;
+         mparams.load_mode     = load_mode;
++        // MoeEngine benchmark build: keep arch-marked expert banks out of the
++        // eager mmap prefetch set, matching `llama-cli --tensor-read-lazy on`.
++        mparams.tensor_read_lazy = LLAMA_TENSOR_READ_LAZY_ON;
+         mparams.main_gpu      = main_gpu;
+         mparams.tensor_split  = tensor_split.data();
+         mparams.no_host       = no_host;
+@@ -1279,6 +1282,10 @@ struct cmd_params_instance {
+         llama_context_params cparams = llama_context_default_params();
+ 
+         cparams.n_ctx           = n_prompt + n_gen + n_depth;
++        const char * moeengine_min_ctx = std::getenv("MOEENGINE_MIN_CTX");
++        if (moeengine_min_ctx != nullptr && std::atoi(moeengine_min_ctx) > 0) {
++            cparams.n_ctx = std::max(cparams.n_ctx, (uint32_t) std::atoi(moeengine_min_ctx));
++        }
+         cparams.n_batch         = n_batch;
+         cparams.n_ubatch        = n_ubatch;
+         cparams.type_k          = type_k;
